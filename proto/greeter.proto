@@ -1,19 +1,21 @@
+// ===============================
+// proto/greeter.proto
+// ===============================
 syntax = "proto3";
 
 package greeter;
 
-// GreeterServiceというサービスを定義
 service GreeterService {
   rpc SayHello (HelloRequest) returns (HelloReply);
-  rpc SayHelloStream(HelloRequest) returns (stream HelloReply);
+  rpc SayHelloStream (HelloRequest) returns (stream HelloReply);
+  rpc SayHelloClientStream (stream HelloRequest) returns (HelloReply);
+  rpc SayHelloBidirectionalStream (stream HelloRequest) returns (stream HelloReply);
 }
 
-// クライアントから送るリクエストメッセージ
 message HelloRequest {
   string name = 1;
 }
 
-// サーバーから返すレスポンスメッセージ
 message HelloReply {
   string message = 1;
 }

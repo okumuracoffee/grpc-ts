@@ -1,63 +1,85 @@
+// ===============================
+// server/src/server.ts
+// ===============================
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
 
-// protoファイルのパス
 const PROTO_PATH = path.resolve(__dirname, '../../proto/greeter.proto');
-
-// protoファイルをNode.js用に読み込む
 const packageDefinition = protoLoader.loadSync(PROTO_PATH);
-// gRPCサーバーで使える形にする
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
-
-// GreeterServiceを取り出す
 const greeter = protoDescriptor.greeter;
 
-// サーバー実装	クライアントからのリクエストを受け取って、レスポンスを返す
-// --- Unary通信のSayHello
-function sayHello(
-  call: grpc.ServerUnaryCall<any, any>,
-  callback: grpc.sendUnaryData<any>
-) {
+function sayHello(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
   const name = call.request.name;
-  console.log(`受信: name=${name}`);
+  console.log(`Unary受信: name=${name}`);
   callback(null, { message: `こんにちは、${name}さん！` });
 }
 
-// --- Server Streaming通信のSayHelloStream
-function sayHelloStream(
-  call: grpc.ServerWritableStream<any, any>
-) {
+function sayHelloStream(call: grpc.ServerWritableStream<any, any>) {
   const name = call.request.name;
-  console.log(`ストリーミング開始: name=${name}`);
-
+  console.log(`Server Streaming開始: name=${name}`);
   let count = 0;
   const intervalId = setInterval(() => {
     count++;
     const message = `こんにちは、${name}さん！ [${count}]`;
-    console.log(`送信: ${message}`);
-    call.write({ message }); // ←1回送信！
-
-    if (count >= 5) { // 5回送ったら終了
+    console.log(`Server Streaming送信: ${message}`);
+    call.write({ message });
+    if (count >= 5) {
       clearInterval(intervalId);
-      call.end(); // ストリームを終了！
-      console.log('ストリーミング終了');
+      call.end();
+      console.log('Server Streaming終了');
     }
-  }, 1000); // 1秒に1回送る
+  }, 1000);
 }
 
-// gRPCサーバーを作る
+function sayHelloClientStream(call: grpc.ServerReadableStream<any, any>, callback: grpc.sendUnaryData<any>) {
+  const names: string[] = [];
+  call.on('data', (request) => {
+    console.log(`Client Streaming受信: name=${request.name}`);
+    names.push(request.name);
+  });
+  call.on('end', () => {
+    const message = `こんにちは、${names.join('さん、')}さん！`;
+    console.log(`Client Streamingまとめ応答: ${message}`);
+    callback(null, { message });
+  });
+  call.on('error', (err: grpc.ServiceError) => {
+    console.error('Client Streamingエラー:', err);
+  });
+}
+
+function sayHelloBidirectionalStream(call: grpc.ServerDuplexStream<any, any>) {
+  call.on('data', (request) => {
+    console.log(`Bidirectional受信: name=${request.name}`);
+    const message = `こんにちは、${request.name}さん！`;
+    console.log(`Bidirectional応答: ${message}`);
+    call.write({ message });
+  });
+  call.on('end', () => {
+    console.log('Bidirectionalストリーム終了');
+    call.end();
+  });
+  call.on('error', (err: grpc.ServiceError) => {
+    console.error('Bidirectionalエラー:', err);
+  });
+}
+
 function main() {
   const server = new grpc.Server();
-  // サーバーにRPCサービス（GreeterService）を登録する
-  server.addService(greeter.GreeterService.service, { 
+  server.addService(greeter.GreeterService.service, {
     SayHello: sayHello,
-    SayHelloStream: sayHelloStream, 
+    SayHelloStream: sayHelloStream,
+    SayHelloClientStream: sayHelloClientStream,
+    SayHelloBidirectionalStream: sayHelloBidirectionalStream,
   });
-  // サーバーを指定ポートで待ち受け開始
-  server.bindAsync('0.0.0.0:50051', grpc.ServerCredentials.createInsecure(), () => {
+  server.bindAsync('0.0.0.0:50051', grpc.ServerCredentials.createInsecure(), (err, port) => {
+    if (err) {
+      console.error('サーバーバインド失敗:', err);
+      return;
+    }
     server.start();
-    console.log('gRPCサーバー起動: 0.0.0.0:50051');
+    console.log(`gRPCサーバー起動: 0.0.0.0:${port}`);
   });
 }
 
