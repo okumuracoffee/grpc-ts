@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  server:
+    build:
+      context: ./server    # serverディレクトリをビルド対象にする
+    container_name: grpc-server
+    ports:
+      - "50051:50051"       # gRPCの通信ポート（50051）をホストとコンテナでマッピング
+    volumes:
+      - ./server:/app       # ホットリロード用にローカルのserver/をコンテナ内/appにマウント
+      - ./proto:/proto 
+    command: npm run start:dev  # 開発用ホットリロードコマンドで起動
+
+  client:
+    build:
+      context: ./client    # clientディレクトリをビルド対象にする
+    container_name: grpc-client
+    depends_on:
+      - server             # clientはserverが立ち上がってから動く
+    volumes:
+      - ./client:/app       # ホットリロード用にローカルのclient/をマウント
+      - ./proto:/proto 
+    command: npm run start:dev  # 開発用ホットリロードコマンドで起動
