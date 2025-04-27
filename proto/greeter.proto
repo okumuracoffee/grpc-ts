@@ -5,6 +5,7 @@ package greeter;
 // GreeterServiceというサービスを定義
 service GreeterService {
   rpc SayHello (HelloRequest) returns (HelloReply);
+  rpc SayHelloStream(HelloRequest) returns (stream HelloReply);
 }
 
 // クライアントから送るリクエストメッセージ
